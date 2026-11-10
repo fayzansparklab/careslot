@@ -1,8 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 
 class PaymentPage extends StatefulWidget {
   final int appointmentId;
@@ -37,18 +37,27 @@ class _PaymentPageState extends State<PaymentPage> {
       final clientSecret = data['client_secret'] as String;
       final paymentIntentId = data['payment_intent_id'] as String;
 
-      // 2. Initialize and present the Stripe Payment Sheet
-      await Stripe.instance.initPaymentSheet(
-        paymentSheetParameters: SetupPaymentSheetParameters(
-          paymentIntentClientSecret: clientSecret,
-          merchantDisplayName: 'CareSlot',
-        ),
-      );
-      await Stripe.instance.presentPaymentSheet();
+      if (kIsWeb) {
+        // --- WEB TEST MODE ---
+        // We skip the native Payment Sheet and simulate a 2-second delay
+        // to mimic the user entering their card.
+        await Future.delayed(const Duration(seconds: 2));
+        debugPrint('Simulated Stripe payment with Client Secret: $clientSecret');
+      } else {
+        // --- MOBILE MODE (Android/iOS) ---
+        await Stripe.instance.initPaymentSheet(
+          paymentSheetParameters: SetupPaymentSheetParameters(
+            paymentIntentClientSecret: clientSecret,
+            merchantDisplayName: 'CareSlot',
+          ),
+        );
+        await Stripe.instance.presentPaymentSheet();
+      }
 
-      // 3. Update the database on success
+      // 2. Update the database on success
       await _supabase.from('appointments').update({
         'payment_status': 'paid',
+        'status': 'confirmed', // <-- Add this line
         'stripe_payment_id': paymentIntentId,
       }).eq('id', widget.appointmentId);
 
@@ -91,6 +100,19 @@ class _PaymentPageState extends State<PaymentPage> {
               style: Theme.of(context).textTheme.displaySmall,
             ),
             const SizedBox(height: 24),
+            if (kIsWeb)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'Web Test Mode active: Clicking "Pay" will simulate a successful card payment.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            const SizedBox(height: 16),
             FilledButton(
               onPressed: _paying ? null : _pay,
               child: _paying
@@ -99,7 +121,7 @@ class _PaymentPageState extends State<PaymentPage> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Pay with card'),
+                  : Text(kIsWeb ? 'Simulate Payment' : 'Pay with card'),
             ),
             const SizedBox(height: 12),
             TextButton(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:careslot/core/theme/app_theme.dart';
+
 class DoctorAvailabilityPage extends StatefulWidget {
   const DoctorAvailabilityPage({super.key});
 
@@ -38,6 +40,7 @@ class _DoctorAvailabilityPageState extends State<DoctorAvailabilityPage> {
   bool _loading = true;
   bool _saving = false;
   int? _doctorId;
+  
   final List<_DayRule> _rules =
       List.generate(7, (i) => _DayRule(dayOfWeek: i + 1));
 
@@ -114,14 +117,15 @@ class _DoctorAvailabilityPageState extends State<DoctorAvailabilityPage> {
   Future<void> _save() async {
     if (_doctorId == null) return;
 
-    // Basic validation: end after start for enabled days
+    // Basic validation
     for (final r in _rules.where((r) => r.enabled)) {
       final startMin = r.start.hour * 60 + r.start.minute;
       final endMin = r.end.hour * 60 + r.end.minute;
       if (endMin <= startMin) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${r.dayName}: end time must be after start time'),
+            content: Text('${r.dayName}: End time must be after start time'),
+            backgroundColor: Colors.red,
           ),
         );
         return;
@@ -153,7 +157,7 @@ class _DoctorAvailabilityPageState extends State<DoctorAvailabilityPage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Availability saved')),
+        const SnackBar(content: Text('Availability updated successfully')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -174,76 +178,141 @@ class _DoctorAvailabilityPageState extends State<DoctorAvailabilityPage> {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Weekly Availability')),
+      appBar: AppBar(
+        title: const Text('My Availability'),
+        centerTitle: true,
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
+          : Column(
               children: [
-                const Text(
-                  'Toggle the days you work and set your hours. '
-                  'Slots are 30 minutes.',
-                  style: TextStyle(color: Colors.black54),
-                ),
-                const SizedBox(height: 12),
-                ..._rules.map((rule) {
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
-                      child: Column(
-                        children: [
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(rule.dayName),
-                            value: rule.enabled,
-                            onChanged: (v) =>
-                                setState(() => rule.enabled = v),
-                          ),
-                          if (rule.enabled)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: () => _pickTime(rule,
-                                          isStart: true),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      Text(
+                        'Weekly Schedule',
+                        style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Toggle the days you work and set your hours. Patients will book 30-minute slots within these times.',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      ..._rules.map((rule) {
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
                                       child: Text(
-                                          'Start: ${_fmt(rule.start)}'),
+                                        rule.dayName,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: rule.enabled ? FontWeight.bold : FontWeight.normal,
+                                          color: rule.enabled ? AppColors.textPrimary : Colors.grey,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: () =>
-                                          _pickTime(rule, isStart: false),
-                                      child:
-                                          Text('End: ${_fmt(rule.end)}'),
+                                    Switch(
+                                      value: rule.enabled,
+                                      activeColor: AppColors.primary,
+                                      onChanged: (v) => setState(() => rule.enabled = v),
                                     ),
+                                  ],
+                                ),
+                                if (rule.enabled) ...[
+                                  const Divider(),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: InkWell(
+                                          onTap: () => _pickTime(rule, isStart: true),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primaryTint,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text('Start Time', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                                const SizedBox(height: 4),
+                                                Text(_fmt(rule.start), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: InkWell(
+                                          onTap: () => _pickTime(rule, isStart: false),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primaryTint,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text('End Time', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                                const SizedBox(height: 4),
+                                                Text(_fmt(rule.end), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
-                              ),
+                              ],
                             ),
-                        ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+                
+                // Sticky Save Button
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _saving ? null : _save,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text('Save Schedule'),
                       ),
                     ),
-                  );
-                }),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _saving ? null : _save,
-                    child: _saving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Save availability'),
                   ),
                 ),
               ],

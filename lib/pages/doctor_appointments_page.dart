@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:careslot/core/theme/app_theme.dart';
+
 class DoctorAppointmentsPage extends StatefulWidget {
   const DoctorAppointmentsPage({super.key});
 
@@ -27,7 +29,6 @@ class _DoctorAppointmentsPageState extends State<DoctorAppointmentsPage> {
     try {
       final userId = _supabase.auth.currentUser!.id;
 
-      // Get this doctor's id
       final doctor = await _supabase
           .from('doctors')
           .select('id')
@@ -98,13 +99,12 @@ class _DoctorAppointmentsPageState extends State<DoctorAppointmentsPage> {
     final saved = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Appointment notes'),
+        title: const Text('Clinical Notes'),
         content: TextField(
           controller: controller,
           maxLines: 5,
           decoration: const InputDecoration(
-            hintText: 'Add clinical notes for this visit…',
-            border: OutlineInputBorder(),
+            hintText: 'Add clinical notes for this visit...',
           ),
         ),
         actions: [
@@ -114,7 +114,7 @@ class _DoctorAppointmentsPageState extends State<DoctorAppointmentsPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Save'),
+            child: const Text('Save Note'),
           ),
         ],
       ),
@@ -149,59 +149,42 @@ class _DoctorAppointmentsPageState extends State<DoctorAppointmentsPage> {
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year} · $h:$m $ampm';
   }
 
-  Color _statusColor(String status) {
+  Widget _buildStatusBadge(String status) {
+    Color color;
+    Color bgColor;
     switch (status) {
       case 'confirmed':
-        return Colors.green;
+        color = Colors.green.shade700;
+        bgColor = Colors.green.shade50;
+        break;
       case 'cancelled':
-        return Colors.red;
+        color = Colors.red.shade700;
+        bgColor = Colors.red.shade50;
+        break;
       case 'completed':
-        return Colors.blueGrey;
+        color = Colors.blueGrey.shade700;
+        bgColor = Colors.blueGrey.shade50;
+        break;
       default:
-        return Colors.orange;
+        color = Colors.orange.shade800;
+        bgColor = Colors.orange.shade50;
     }
-  }
-
-  Widget _statusChip(String status, String paymentStatus) {
-    final color = _statusColor(status);
     final label = status[0].toUpperCase() + status.substring(1);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
         ),
-        const SizedBox(width: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: paymentStatus == 'paid'
-                ? Colors.green.withValues(alpha: 0.12)
-                : Colors.grey.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            paymentStatus == 'paid' ? 'Paid' : 'Unpaid',
-            style: TextStyle(
-              color: paymentStatus == 'paid' ? Colors.green : Colors.grey[700],
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -212,144 +195,237 @@ class _DoctorAppointmentsPageState extends State<DoctorAppointmentsPage> {
     final notes = appt['notes'] as String?;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top Row: Patient Info & Status / Menu
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.primaryTint,
+                  child: const Icon(Icons.person, color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    patient?['full_name'] ?? 'Patient',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        patient?['full_name'] ?? 'Patient',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      if (patient?['phone'] != null)
+                        Text(
+                          patient!['phone'],
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 13,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                _statusChip(status, paymentStatus),
+                _buildStatusBadge(status),
+                
+                // Secondary Actions Menu
+                if (status != 'cancelled')
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, color: Colors.grey),
+                    onSelected: (value) {
+                      if (value == 'notes') _editNotes(appt);
+                      if (value == 'cancel') _updateStatus(appt, 'cancelled');
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'notes',
+                        child: Text(notes == null || notes.isEmpty ? 'Add Notes' : 'Edit Notes'),
+                      ),
+                      if (upcoming && status == 'pending')
+                        const PopupMenuItem(
+                          value: 'cancel',
+                          child: Text('Cancel Appointment', style: TextStyle(color: Colors.red)),
+                        ),
+                    ],
+                  ),
               ],
             ),
-            if (patient?['phone'] != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                patient!['phone'],
-                style: TextStyle(color: Colors.grey[600], fontSize: 13),
-              ),
-            ],
-            const SizedBox(height: 8),
+            
+            const Divider(height: 24),
+
+            // Date, Time & Payment Indicator
             Row(
               children: [
-                const Icon(Icons.schedule, size: 16),
-                const SizedBox(width: 6),
-                Text(_formatDateTime(appt['start_at'] as String)),
-              ],
-            ),
-            if (notes != null && notes.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.note_alt_outlined, size: 16),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      notes,
-                      style: const TextStyle(fontStyle: FontStyle.italic),
+                const Icon(Icons.calendar_today, size: 16, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  _formatDateTime(appt['start_at'] as String),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const Spacer(),
+                if (paymentStatus == 'paid')
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, size: 14, color: Colors.green.shade700),
+                        const SizedBox(width: 4),
+                        Text('Paid', style: TextStyle(color: Colors.green.shade700, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, size: 14, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        Text('Unpaid', style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ],
                     ),
                   ),
-                ],
+              ],
+            ),
+
+            // Clinical Notes
+            if (notes != null && notes.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.note_alt_outlined, size: 16, color: Colors.grey.shade600),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        notes,
+                        style: const TextStyle(
+                          fontStyle: FontStyle.italic,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              alignment: WrapAlignment.end,
-              children: [
-                if (status == 'pending')
-                  FilledButton(
-                    onPressed: () => _updateStatus(appt, 'confirmed'),
-                    child: const Text('Confirm'),
+
+            // Primary Full-Width Action Button
+            if (status == 'pending') ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => _updateStatus(appt, 'confirmed'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                if (status == 'confirmed')
-                  FilledButton(
-                    onPressed: () => _updateStatus(appt, 'completed'),
-                    child: const Text('Complete'),
+                  child: const Text('Confirm Appointment'),
+                ),
+              ),
+            ] else if (status == 'confirmed') ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => _updateStatus(appt, 'completed'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.blueGrey.shade700,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                if (status != 'cancelled' && status != 'completed')
-                  OutlinedButton(
-                    onPressed: () => _editNotes(appt),
-                    child: Text(notes == null || notes.isEmpty
-                        ? 'Add notes'
-                        : 'Edit notes'),
-                  ),
-                if (upcoming && status == 'pending')
-                  OutlinedButton(
-                    onPressed: () => _updateStatus(appt, 'cancelled'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                    ),
-                    child: const Text('Cancel'),
-                  ),
-              ],
-            ),
+                  child: const Text('Mark as Completed'),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _sectionHeader(BuildContext context, String title, int count) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 8),
-      child: Text(
-        '$title ($count)',
-        style: Theme.of(context).textTheme.titleMedium,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Appointments')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _doctorId == null
-              ? const Center(
-                  child: Text('No doctor profile linked to this account.'),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('My Schedule'),
+          bottom: const TabBar(
+            labelColor: AppColors.primary,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: AppColors.primary,
+            tabs: [
+              Tab(text: 'Upcoming'),
+              Tab(text: 'Past'),
+            ],
+          ),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _doctorId == null
+                ? const Center(child: Text('No doctor profile linked.'))
+                : TabBarView(
                     children: [
-                      _sectionHeader(context, 'Upcoming', _upcoming.length),
-                      if (_upcoming.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 16),
-                          child: Text('No upcoming appointments.'),
-                        )
-                      else
-                        ..._upcoming.map(
-                          (a) => _appointmentCard(a, upcoming: true),
-                        ),
-                      const SizedBox(height: 8),
-                      _sectionHeader(context, 'Past', _past.length),
-                      if (_past.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 16),
-                          child: Text('No past appointments.'),
-                        )
-                      else
-                        ..._past.map(
-                          (a) => _appointmentCard(a, upcoming: false),
-                        ),
+                      // Upcoming Tab
+                      RefreshIndicator(
+                        onRefresh: _load,
+                        child: _upcoming.isEmpty
+                            ? ListView(
+                                children: const [
+                                  SizedBox(height: 100),
+                                  Center(child: Text('No upcoming appointments.')),
+                                ],
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: _upcoming.length,
+                                itemBuilder: (context, i) =>
+                                    _appointmentCard(_upcoming[i], upcoming: true),
+                              ),
+                      ),
+                      // Past Tab
+                      RefreshIndicator(
+                        onRefresh: _load,
+                        child: _past.isEmpty
+                            ? ListView(
+                                children: const [
+                                  SizedBox(height: 100),
+                                  Center(child: Text('No past appointments.')),
+                                ],
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: _past.length,
+                                itemBuilder: (context, i) =>
+                                    _appointmentCard(_past[i], upcoming: false),
+                              ),
+                      ),
                     ],
                   ),
-                ),
+      ),
     );
   }
 }

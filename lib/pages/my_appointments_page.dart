@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:careslot/core/theme/app_theme.dart';
+
 class MyAppointmentsPage extends StatefulWidget {
   const MyAppointmentsPage({super.key});
 
@@ -92,6 +94,7 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Cancel appointment'),
           ),
         ],
@@ -136,8 +139,7 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage> {
                 children: List.generate(5, (i) {
                   final starIndex = i + 1;
                   return IconButton(
-                    onPressed: () =>
-                        setDialogState(() => rating = starIndex),
+                    onPressed: () => setDialogState(() => rating = starIndex),
                     icon: Icon(
                       starIndex <= rating ? Icons.star : Icons.star_border,
                       color: Colors.amber,
@@ -152,7 +154,6 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage> {
                 maxLines: 4,
                 decoration: const InputDecoration(
                   hintText: 'Share details about your experience (optional)',
-                  border: OutlineInputBorder(),
                 ),
               ),
             ],
@@ -208,55 +209,59 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage> {
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year} · $h:$m $ampm';
   }
 
-  Widget _statusChip(String status, String paymentStatus) {
+  Widget _buildStatusBadge(String status, String paymentStatus) {
     Color color;
+    Color bgColor;
     switch (status) {
       case 'confirmed':
-        color = Colors.green;
+        color = Colors.green.shade700;
+        bgColor = Colors.green.shade50;
         break;
       case 'cancelled':
-        color = Colors.red;
+        color = Colors.red.shade700;
+        bgColor = Colors.red.shade50;
         break;
       case 'completed':
-        color = Colors.blueGrey;
+        color = Colors.blueGrey.shade700;
+        bgColor = Colors.blueGrey.shade50;
         break;
       default:
-        color = Colors.orange;
+        color = Colors.orange.shade800;
+        bgColor = Colors.orange.shade50;
     }
     final label = status[0].toUpperCase() + status.substring(1);
+    
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
+            color: bgColor,
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             label,
             style: TextStyle(
               color: color,
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
         const SizedBox(width: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: paymentStatus == 'paid'
-                ? Colors.green.withValues(alpha: 0.12)
-                : Colors.grey.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
+            color: paymentStatus == 'paid' ? Colors.green.shade50 : Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             paymentStatus == 'paid' ? 'Paid' : 'Unpaid',
             style: TextStyle(
-              color: paymentStatus == 'paid' ? Colors.green : Colors.grey[700],
+              color: paymentStatus == 'paid' ? Colors.green.shade700 : Colors.grey.shade700,
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -274,88 +279,120 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage> {
     final alreadyReviewed = _reviewedAppointmentIds.contains(apptId);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top Row: Doctor Info & Status
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.primaryTint,
+                  child: const Icon(Icons.person, color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    profile?['full_name'] ?? 'Doctor',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        profile?['full_name'] ?? 'Doctor',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        '${spec?['name'] ?? 'General'} · \$${doctor?['fee'] ?? 0}',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                      ),
+                    ],
                   ),
                 ),
-                _statusChip(status, paymentStatus),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              '${spec?['name'] ?? 'General'} · \$${doctor?['fee'] ?? 0}',
-              style: TextStyle(color: Colors.grey[700]),
-            ),
-            const SizedBox(height: 8),
+            
+            const SizedBox(height: 12),
+            _buildStatusBadge(status, paymentStatus),
+            
+            const Divider(height: 24),
+            
+            // Date & Time
             Row(
               children: [
-                const Icon(Icons.schedule, size: 16),
-                const SizedBox(width: 6),
-                Text(_formatDateTime(appt['start_at'] as String)),
+                const Icon(Icons.calendar_today, size: 16, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  _formatDateTime(appt['start_at'] as String),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
               ],
             ),
-            if (status == 'completed' && !alreadyReviewed) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.tonalIcon(
-                  onPressed: () => _leaveReview(appt),
-                  icon: const Icon(Icons.star_outline),
-                  label: const Text('Leave a review'),
-                ),
-              ),
-            ],
-            if (status == 'completed' && alreadyReviewed) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.check_circle,
-                      size: 16, color: Colors.green),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Reviewed',
-                    style: TextStyle(color: Colors.grey[700]),
-                  ),
-                ],
-              ),
-            ],
-                     if (paymentStatus == 'unpaid' && status != 'cancelled') ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
+            
+            const SizedBox(height: 16),
+            
+            // Full-Width Action Buttons (Standard U.S. UX)
+            if (paymentStatus == 'unpaid' && status != 'cancelled' && status != 'completed') ...[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
                   onPressed: () {
                     final fee = (doctor?['fee'] as num?)?.toDouble() ?? 0.0;
                     context.go('/pay/$apptId/$fee');
                   },
-                  icon: const Icon(Icons.payment),
-                  label: const Text('Pay now'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Pay Now'),
                 ),
               ),
-            ],
-            if (upcoming && status != 'cancelled' && status != 'completed') ...[
               const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
+            ],
+
+            if (status == 'completed' && !alreadyReviewed) ...[
+              SizedBox(
+                width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () => _cancel(appt),
+                  onPressed: () => _leaveReview(appt),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  child: const Text('Cancel'),
+                  child: const Text('Leave a Review'),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            
+            if (status == 'completed' && alreadyReviewed) ...[
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, size: 16, color: Colors.green.shade600),
+                    const SizedBox(width: 6),
+                    Text('You reviewed this visit', style: TextStyle(color: Colors.green.shade600)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            if (upcoming && status != 'cancelled' && status != 'completed') ...[
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => _cancel(appt),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Cancel Appointment'),
                 ),
               ),
             ],
@@ -365,51 +402,64 @@ class _MyAppointmentsPageState extends State<MyAppointmentsPage> {
     );
   }
 
-  Widget _sectionHeader(BuildContext context, String title, int count) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 8),
-      child: Text(
-        '$title ($count)',
-        style: Theme.of(context).textTheme.titleMedium,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Appointments')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('My Appointments'),
+          bottom: const TabBar(
+            labelColor: AppColors.primary,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: AppColors.primary,
+            tabs: [
+              Tab(text: 'Upcoming'),
+              Tab(text: 'Past'),
+            ],
+          ),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(
                 children: [
-                  _sectionHeader(context, 'Upcoming', _upcoming.length),
-                  if (_upcoming.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 16),
-                      child: Text('No upcoming appointments.'),
-                    )
-                  else
-                    ..._upcoming.map(
-                      (a) => _appointmentCard(a, upcoming: true),
-                    ),
-                  const SizedBox(height: 8),
-                  _sectionHeader(context, 'Past', _past.length),
-                  if (_past.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 16),
-                      child: Text('No past appointments.'),
-                    )
-                  else
-                    ..._past.map(
-                      (a) => _appointmentCard(a, upcoming: false),
-                    ),
+                  // Upcoming Tab
+                  RefreshIndicator(
+                    onRefresh: _load,
+                    child: _upcoming.isEmpty
+                        ? ListView(
+                            children: const [
+                              SizedBox(height: 100),
+                              Center(child: Text('No upcoming appointments.')),
+                            ],
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _upcoming.length,
+                            itemBuilder: (context, i) =>
+                                _appointmentCard(_upcoming[i], upcoming: true),
+                          ),
+                  ),
+                  // Past Tab
+                  RefreshIndicator(
+                    onRefresh: _load,
+                    child: _past.isEmpty
+                        ? ListView(
+                            children: const [
+                              SizedBox(height: 100),
+                              Center(child: Text('No past appointments.')),
+                            ],
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _past.length,
+                            itemBuilder: (context, i) =>
+                                _appointmentCard(_past[i], upcoming: false),
+                          ),
+                  ),
                 ],
               ),
-            ),
+      ),
     );
   }
 }

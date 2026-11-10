@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:careslot/core/theme/app_theme.dart';
+
 class AdminDoctorsPage extends StatefulWidget {
   const AdminDoctorsPage({super.key});
 
@@ -27,11 +29,12 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
           .from('doctors')
           .select(
             'id, fee, years_experience, bio, specialty_id, '
-            'profiles(full_name), specialties(name)',
+            'profiles(full_name, avatar_url), specialties(name)',
           )
           .order('id');
       final specs =
           await _supabase.from('specialties').select().order('name');
+          
       if (!mounted) return;
       setState(() {
         _doctors = List<Map<String, dynamic>>.from(docs);
@@ -52,12 +55,12 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('New specialty'),
+        title: const Text('New Specialty'),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
-            labelText: 'Name',
-            border: OutlineInputBorder(),
+            labelText: 'Specialty Name',
+            hintText: 'e.g. Neurology',
           ),
         ),
         actions: [
@@ -73,13 +76,14 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
       ),
     );
     if (name == null || name.isEmpty) return;
+    
     try {
       await _supabase.from('specialties').insert({'name': name});
       await _load();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Add specialty failed: $e')),
+        SnackBar(content: Text('Add failed: $e')),
       );
     }
   }
@@ -88,8 +92,8 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete specialty?'),
-        content: Text('Delete "${spec['name']}"?'),
+        title: const Text('Delete Specialty?'),
+        content: Text('Are you sure you want to delete "${spec['name']}"? This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -97,12 +101,14 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Delete'),
           ),
         ],
       ),
     );
     if (ok != true) return;
+    
     try {
       await _supabase
           .from('specialties')
@@ -118,10 +124,8 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
   }
 
   Future<void> _editDoctor(Map<String, dynamic> doc) async {
-    final feeController =
-        TextEditingController(text: (doc['fee'] ?? '').toString());
-    final yearsController =
-        TextEditingController(text: (doc['years_experience'] ?? '').toString());
+    final feeController = TextEditingController(text: (doc['fee'] ?? '').toString());
+    final yearsController = TextEditingController(text: (doc['years_experience'] ?? '').toString());
     final bioController = TextEditingController(text: doc['bio'] ?? '');
     int? specialtyId = doc['specialty_id'] as int?;
 
@@ -129,7 +133,7 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(doc['profiles']?['full_name'] ?? 'Edit doctor'),
+          title: Text(doc['profiles']?['full_name'] ?? 'Edit Doctor'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -139,7 +143,6 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     labelText: 'Fee (\$)',
-                    border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -147,8 +150,7 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
                   controller: yearsController,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: 'Years experience',
-                    border: OutlineInputBorder(),
+                    labelText: 'Years Experience',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -156,18 +158,14 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
                   initialValue: specialtyId,
                   decoration: const InputDecoration(
                     labelText: 'Specialty',
-                    border: OutlineInputBorder(),
                   ),
                   items: _specialties
-                      .map(
-                        (s) => DropdownMenuItem<int>(
-                          value: s['id'] as int,
-                          child: Text(s['name'] as String),
-                        ),
-                      )
+                      .map((s) => DropdownMenuItem<int>(
+                            value: s['id'] as int,
+                            child: Text(s['name'] as String),
+                          ))
                       .toList(),
-                  onChanged: (v) =>
-                      setDialogState(() => specialtyId = v),
+                  onChanged: (v) => setDialogState(() => specialtyId = v),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -175,7 +173,6 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
                   maxLines: 3,
                   decoration: const InputDecoration(
                     labelText: 'Bio',
-                    border: OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -188,7 +185,7 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save'),
+              child: const Text('Save Changes'),
             ),
           ],
         ),
@@ -199,8 +196,7 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
     try {
       await _supabase.from('doctors').update({
         'fee': num.tryParse(feeController.text.trim()) ?? 0,
-        'years_experience':
-            int.tryParse(yearsController.text.trim()) ?? 0,
+        'years_experience': int.tryParse(yearsController.text.trim()) ?? 0,
         'specialty_id': specialtyId,
         'bio': bioController.text.trim(),
       }).eq('id', doc['id']);
@@ -219,8 +215,12 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Doctors & Specialties'),
+          title: const Text('Manage Catalog'),
+          centerTitle: true,
           bottom: const TabBar(
+            labelColor: AppColors.primary,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: AppColors.primary,
             tabs: [
               Tab(text: 'Doctors'),
               Tab(text: 'Specialties'),
@@ -231,39 +231,67 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
             ? const Center(child: CircularProgressIndicator())
             : TabBarView(
                 children: [
+                  // Doctors Tab
                   RefreshIndicator(
                     onRefresh: _load,
                     child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
                       itemCount: _doctors.length,
                       itemBuilder: (context, i) {
                         final d = _doctors[i];
-                        return ListTile(
-                          title: Text(
-                            d['profiles']?['full_name'] ?? 'Doctor',
-                          ),
-                          subtitle: Text(
-                            '${d['specialties']?['name'] ?? '—'} · '
-                            '\$${d['fee']} · ${d['years_experience']} yrs',
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _editDoctor(d),
+                        final profile = d['profiles'] as Map<String, dynamic>?;
+                        
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.all(12),
+                            leading: CircleAvatar(
+                              radius: 24,
+                              backgroundColor: AppColors.primaryTint,
+                              backgroundImage: profile?['avatar_url'] != null
+                                  ? NetworkImage(profile!['avatar_url'])
+                                  : null,
+                              child: profile?['avatar_url'] == null
+                                  ? const Icon(Icons.person, color: AppColors.primary)
+                                  : null,
+                            ),
+                            title: Text(
+                              profile?['full_name'] ?? 'Doctor',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Text(
+                              '${d['specialties']?['name'] ?? '—'} · \$${d['fee']} · ${d['years_experience']} yrs',
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.edit, color: AppColors.primary),
+                              onPressed: () => _editDoctor(d),
+                            ),
                           ),
                         );
                       },
                     ),
                   ),
+                  
+                  // Specialties Tab
                   RefreshIndicator(
                     onRefresh: _load,
                     child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
                       itemCount: _specialties.length,
                       itemBuilder: (context, i) {
                         final s = _specialties[i];
-                        return ListTile(
-                          title: Text(s['name'] as String),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _deleteSpecialty(s),
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: const Icon(Icons.medical_services, color: AppColors.primary),
+                            title: Text(
+                              s['name'] as String,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.red),
+                              onPressed: () => _deleteSpecialty(s),
+                            ),
                           ),
                         );
                       },
@@ -273,8 +301,9 @@ class _AdminDoctorsPageState extends State<AdminDoctorsPage> {
               ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: _addSpecialty,
+          backgroundColor: AppColors.primary,
           icon: const Icon(Icons.add),
-          label: const Text('Add specialty'),
+          label: const Text('Add Specialty'),
         ),
       ),
     );

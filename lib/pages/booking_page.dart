@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:careslot/core/theme/app_theme.dart';
 
 class BookingPage extends StatefulWidget {
   final String doctorId;
@@ -18,7 +21,7 @@ class _BookingPageState extends State<BookingPage> {
   bool _loading = true;
 
   DateTime _selectedDate = DateTime.now();
-  String? _selectedSlot; // e.g. "09:30"
+  String? _selectedSlot; 
   bool _booking = false;
 
   @override
@@ -68,10 +71,8 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
-  /// Build slots for the selected date by expanding availability rows
-  /// for that weekday and removing slots already booked.
   List<String> _slotsForSelectedDate() {
-    final weekday = _selectedDate.weekday; // 1=Mon ... 7=Sun
+    final weekday = _selectedDate.weekday;
     final rows = _availability
         .where((a) => (a['day_of_week'] as int) == weekday)
         .toList();
@@ -83,17 +84,16 @@ class _BookingPageState extends State<BookingPage> {
       final end = _parseTime(row['end_time'] as String);
       final step = (row['slot_minutes'] as int?) ?? 30;
 
- int startMin = start.hour * 60 + start.minute;
-final endMin = end.hour * 60 + end.minute;
-while (startMin < endMin) {
-  final h = (startMin ~/ 60).toString().padLeft(2, '0');
-  final m = (startMin % 60).toString().padLeft(2, '0');
-  slots.add('$h:$m');
-  startMin += step;
-}
+      int startMin = start.hour * 60 + start.minute;
+      final endMin = end.hour * 60 + end.minute;
+      while (startMin < endMin) {
+        final h = (startMin ~/ 60).toString().padLeft(2, '0');
+        final m = (startMin % 60).toString().padLeft(2, '0');
+        slots.add('$h:$m');
+        startMin += step;
+      }
     }
 
-    // Remove slots already taken on that date
     final taken = <String>{};
     for (final appt in _existingAppointments) {
       final startAt = DateTime.parse(appt['start_at'] as String).toLocal();
@@ -116,24 +116,6 @@ while (startMin < endMin) {
       hour: int.parse(parts[0]),
       minute: int.parse(parts[1]),
     );
-  }
-
-
-
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 14)),
-    );
-    if (picked != null) {
-      setState(() {
-        _selectedDate = picked;
-        _selectedSlot = null;
-      });
-    }
   }
 
   Future<void> _book() async {
@@ -166,7 +148,7 @@ while (startMin < endMin) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Appointment booked!')),
       );
-      await _load();
+      context.go('/patient/appointments'); // Go to appointments after booking
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -179,87 +161,208 @@ while (startMin < endMin) {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Book appointment')),
+      appBar: AppBar(
+        title: const Text('Book Appointment'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/doctor/${widget.doctorId}'),
+        ),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _doctor == null
               ? const Center(child: Text('Doctor not found'))
-              : Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _doctor!['profiles']?['full_name'] ?? 'Doctor',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      Text(
-                        '${_doctor!['specialties']?['name'] ?? 'General'} · '
-                        '\$${_doctor!['fee']}',
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.calendar_today),
-                        label: Text(
-                          '${_selectedDate.year}-'
-                          '${_selectedDate.month.toString().padLeft(2, '0')}-'
-                          '${_selectedDate.day.toString().padLeft(2, '0')}',
-                        ),
-                        onPressed: _pickDate,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Available slots',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: Builder(
-                          builder: (context) {
-                            final slots = _slotsForSelectedDate();
-                            if (slots.isEmpty) {
-                              return const Center(
-                                child: Text(
-                                  'No slots available for this date.\nPick another day.',
-                                  textAlign: TextAlign.center,
+              : Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Doctor Info Header
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: AppColors.primaryTint,
+                                  child: const Icon(Icons.person, color: AppColors.primary),
                                 ),
-                              );
-                            }
-                            return Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: slots.map((s) {
-                                final selected = _selectedSlot == s;
-                                return ChoiceChip(
-                                  label: Text(s),
-                                  selected: selected,
-                                  onSelected: (_) =>
-                                      setState(() => _selectedSlot = s),
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _doctor!['profiles']?['full_name'] ?? 'Doctor',
+                                      style: textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${_doctor!['specialties']?['name'] ?? 'General'} · \$${_doctor!['fee']}',
+                                      style: textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            
+                            const SizedBox(height: 24),
+                            
+                            // Select Date Header with Calendar Icon
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Select a Date',
+                                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.calendar_month, color: AppColors.primary),
+                                  onPressed: () async {
+                                    final picked = await showDatePicker(
+                                      context: context,
+                                      initialDate: _selectedDate,
+                                      firstDate: DateTime.now(),
+                                      lastDate: DateTime.now().add(const Duration(days: 90)),
+                                    );
+                                    if (picked != null) {
+                                      setState(() {
+                                        _selectedDate = picked;
+                                        _selectedSlot = null;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                            
+                            const SizedBox(height: 12),
+
+                            // Horizontal Date Picker (Next 7 days)
+                            SizedBox(
+                              height: 70,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: 7,
+                                itemBuilder: (context, index) {
+                                  final date = DateTime.now().add(Duration(days: index));
+                                  final isSelected = _sameDay(date, _selectedDate);
+                                  
+                                  return GestureDetector(
+                                    onTap: () => setState(() {
+                                      _selectedDate = date;
+                                      _selectedSlot = null;
+                                    }),
+                                    child: Container(
+                                      width: 64,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: isSelected ? AppColors.primary : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isSelected ? AppColors.primary : Colors.grey.shade300,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][date.weekday - 1],
+                                            style: TextStyle(
+                                              color: isSelected ? Colors.white70 : Colors.grey,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            date.day.toString(),
+                                            style: TextStyle(
+                                              color: isSelected ? Colors.white : AppColors.textPrimary,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 24),
+                            Text(
+                              'Available Times',
+                              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Time Slots
+                            Builder(
+                              builder: (context) {
+                                final slots = _slotsForSelectedDate();
+                                if (slots.isEmpty) {
+                                  return Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Center(
+                                      child: Text('No slots available for this date.\nPlease pick another day.'),
+                                    ),
+                                  );
+                                }
+                                return Wrap(
+                                  spacing: 10,
+                                  runSpacing: 10,
+                                  children: slots.map((s) {
+                                    final selected = _selectedSlot == s;
+                                    return ChoiceChip(
+                                      label: Text(s),
+                                      selected: selected,
+                                      onSelected: (_) => setState(() => _selectedSlot = s),
+                                      selectedColor: AppColors.primary,
+                                      labelStyle: TextStyle(
+                                        color: selected ? Colors.white : AppColors.textPrimary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    );
+                                  }).toList(),
                                 );
-                              }).toList(),
-                            );
-                          },
+                              },
+                            ),
+                          ],
                         ),
                       ),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: _selectedSlot == null || _booking
-                              ? null
-                              : _book,
-                          child: _booking
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2),
-                                )
-                              : const Text('Confirm booking'),
+                    ),
+                    
+                    // Sticky Bottom Confirm Button
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: _selectedSlot == null || _booking ? null : _book,
+                            child: _booking
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Text('Confirm Booking'),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
     );
   }

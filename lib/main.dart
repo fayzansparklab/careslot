@@ -18,8 +18,9 @@ import 'pages/auth_guard.dart';
 import 'pages/admin_appointments_page.dart';
 import 'pages/admin_doctors_page.dart';
 import 'pages/admin_dashboard_page.dart';
+import 'core/theme/app_theme.dart';
 
-
+import 'pages/welcome_page.dart';
 
 import 'pages/payment_page.dart';
 
@@ -107,34 +108,42 @@ class _CareSlotAppState extends State<CareSlotApp> {
 
     _router = GoRouter(
       navigatorKey: _rootNavigatorKey,
-      initialLocation: '/login',
+      initialLocation: '/welcome',
       refreshListenable: Listenable.merge([_authGuard, _roleNotifier]),
-  redirect: (context, state) {
+     redirect: (context, state) {
         final isLoggedIn = _supabase.auth.currentUser != null;
         final role = _roleNotifier.role;
         final loc = state.matchedLocation;
-        final isAuthPage = loc == '/login' || loc == '/signup';
+        final isAuthPage = loc == '/login' || loc == '/signup' || loc == '/welcome';
 
+        // 1. If not logged in, force them to the welcome/login page
         if (!isLoggedIn) {
-          return isAuthPage ? null : '/login';
+          return isAuthPage ? null : '/welcome';
         }
+
+        // 2. If logged in, but they are on an auth page, send them to their dashboard
         if (isAuthPage) {
-          if (role == null) return null;
+          if (role == null) return null; // Wait for role to load from database
           if (role == 'doctor') return '/doctor/schedule';
           if (role == 'admin') return '/admin/dashboard';
           return '/doctors';
         }
+
+        // 3. Route Guards: Prevent users from accessing other roles' pages
         final doctorOnly = loc == '/doctor/schedule' ||
             loc == '/doctor/appointments' ||
             loc == '/doctor/profile';
         final adminOnly = loc.startsWith('/admin/');
+
         if (doctorOnly && role != 'doctor') {
           return role == 'admin' ? '/admin/dashboard' : '/doctors';
         }
+        
         if (adminOnly && role != 'admin') {
           return role == 'doctor' ? '/doctor/schedule' : '/doctors';
         }
-        return null;
+
+        return null; // Allow navigation
       },
         // ---------- Admin shell ----------
 
@@ -142,7 +151,10 @@ class _CareSlotAppState extends State<CareSlotApp> {
       routes: [
         GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
         GoRoute(path: '/signup', builder: (_, __) => const SignupPage()),
-
+GoRoute(
+  path: '/welcome',
+  builder: (context, state) => const WelcomePage(),
+),
         // ---------- Patient shell ----------
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
@@ -316,12 +328,9 @@ class _CareSlotAppState extends State<CareSlotApp> {
     return MaterialApp.router(
       title: 'CareSlot',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-        useMaterial3: true,
-      ),
-      routerConfig: _router,
-    );
+      theme: AppTheme.light,
+        routerConfig: _router,
+           );
   }
 }
 
