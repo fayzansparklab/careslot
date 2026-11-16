@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'pages/login_page.dart';
 import 'pages/signup_page.dart';
+import 'pages/welcome_page.dart';
 import 'pages/doctor_list_page.dart';
 import 'pages/doctor_detail_page.dart';
 import 'pages/booking_page.dart';
@@ -13,16 +14,12 @@ import 'pages/my_appointments_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/doctor_availability_page.dart';
 import 'pages/doctor_appointments_page.dart';
-import 'pages/auth_guard.dart';
-
 import 'pages/admin_appointments_page.dart';
 import 'pages/admin_doctors_page.dart';
 import 'pages/admin_dashboard_page.dart';
-import 'core/theme/app_theme.dart';
-
-import 'pages/welcome_page.dart';
-
 import 'pages/payment_page.dart';
+import 'pages/auth_guard.dart';
+import 'core/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,7 +30,7 @@ Future<void> main() async {
   );
 
   if (!kIsWeb) {
-    Stripe.publishableKey = 'pk_test_YOUR_KEY';
+    Stripe.publishableKey = 'pk_test_YOUR_KEY'; // <-- your real Stripe key
     await Stripe.instance.applySettings();
   }
 
@@ -61,9 +58,9 @@ class RoleNotifier extends ChangeNotifier {
           .eq('id', user.id)
           .single();
       _role = row['role'] as String?;
-      debugPrint('RoleNotifier loaded role: $_role');   // <-- add this line
+      debugPrint('RoleNotifier loaded role: $_role');
     } catch (e) {
-      debugPrint('RoleNotifier load failed: $e');       // <-- and this
+      debugPrint('RoleNotifier load failed: $e');
       _role = 'patient';
     }
     notifyListeners();
@@ -96,7 +93,6 @@ class _CareSlotAppState extends State<CareSlotApp> {
     _authGuard = AuthGuard(_supabase);
     _roleNotifier = RoleNotifier();
 
-    // Load role once at startup and on every auth change
     _roleNotifier.load();
     _supabase.auth.onAuthStateChange.listen((data) {
       if (data.session == null) {
@@ -110,26 +106,23 @@ class _CareSlotAppState extends State<CareSlotApp> {
       navigatorKey: _rootNavigatorKey,
       initialLocation: '/welcome',
       refreshListenable: Listenable.merge([_authGuard, _roleNotifier]),
-     redirect: (context, state) {
+      redirect: (context, state) {
         final isLoggedIn = _supabase.auth.currentUser != null;
         final role = _roleNotifier.role;
         final loc = state.matchedLocation;
         final isAuthPage = loc == '/login' || loc == '/signup' || loc == '/welcome';
 
-        // 1. If not logged in, force them to the welcome/login page
         if (!isLoggedIn) {
           return isAuthPage ? null : '/welcome';
         }
 
-        // 2. If logged in, but they are on an auth page, send them to their dashboard
         if (isAuthPage) {
-          if (role == null) return null; // Wait for role to load from database
+          if (role == null) return null;
           if (role == 'doctor') return '/doctor/schedule';
           if (role == 'admin') return '/admin/dashboard';
           return '/doctors';
         }
 
-        // 3. Route Guards: Prevent users from accessing other roles' pages
         final doctorOnly = loc == '/doctor/schedule' ||
             loc == '/doctor/appointments' ||
             loc == '/doctor/profile';
@@ -143,22 +136,16 @@ class _CareSlotAppState extends State<CareSlotApp> {
           return role == 'doctor' ? '/doctor/schedule' : '/doctors';
         }
 
-        return null; // Allow navigation
+        return null;
       },
-        // ---------- Admin shell ----------
-
-
       routes: [
         GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
         GoRoute(path: '/signup', builder: (_, __) => const SignupPage()),
-GoRoute(
-  path: '/welcome',
-  builder: (context, state) => const WelcomePage(),
-),
-        // ---------- Patient shell ----------
+        GoRoute(path: '/welcome', builder: (_, __) => const WelcomePage()),
+
+        // PATIENT SHELL
         StatefulShellRoute.indexedStack(
-          builder: (context, state, navigationShell) =>
-              ScaffoldWithNavBar(
+          builder: (context, state, navigationShell) => ScaffoldWithNavBar(
             navigationShell: navigationShell,
             destinations: const [
               NavigationDestination(
@@ -180,30 +167,20 @@ GoRoute(
           ),
           branches: [
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/doctors',
-                builder: (_, __) => const DoctorListPage(),
-              ),
+              GoRoute(path: '/doctors', builder: (_, __) => const DoctorListPage()),
             ]),
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/patient/appointments',
-                builder: (_, __) => const MyAppointmentsPage(),
-              ),
+              GoRoute(path: '/patient/appointments', builder: (_, __) => const MyAppointmentsPage()),
             ]),
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/profile',
-                builder: (_, __) => const ProfilePage(),
-              ),
+              GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
             ]),
           ],
         ),
 
-        // ---------- Doctor shell ----------
+        // DOCTOR SHELL
         StatefulShellRoute.indexedStack(
-          builder: (context, state, navigationShell) =>
-              ScaffoldWithNavBar(
+          builder: (context, state, navigationShell) => ScaffoldWithNavBar(
             navigationShell: navigationShell,
             destinations: const [
               NavigationDestination(
@@ -225,27 +202,18 @@ GoRoute(
           ),
           branches: [
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/doctor/schedule',
-                builder: (_, __) => const DoctorAvailabilityPage(),
-              ),
+              GoRoute(path: '/doctor/schedule', builder: (_, __) => const DoctorAvailabilityPage()),
             ]),
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/doctor/appointments',
-                builder: (_, __) => const DoctorAppointmentsPage(),
-              ),
+              GoRoute(path: '/doctor/appointments', builder: (_, __) => const DoctorAppointmentsPage()),
             ]),
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/doctor/profile',
-                builder: (_, __) => const ProfilePage(),
-              ),
+              GoRoute(path: '/doctor/profile', builder: (_, __) => const ProfilePage()),
             ]),
           ],
         ),
 
-        // ---------- Admin shell ----------
+        // ADMIN SHELL
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) => ScaffoldWithNavBar(
             navigationShell: navigationShell,
@@ -274,33 +242,22 @@ GoRoute(
           ),
           branches: [
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/admin/dashboard',
-                builder: (_, __) => const AdminDashboardPage(),
-              ),
+              GoRoute(path: '/admin/dashboard', builder: (_, __) => const AdminDashboardPage()),
             ]),
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/admin/appointments',
-                builder: (_, __) => const AdminAppointmentsPage(),
-              ),
+              GoRoute(path: '/admin/appointments', builder: (_, __) => const AdminAppointmentsPage()),
             ]),
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/admin/doctors',
-                builder: (_, __) => const AdminDoctorsPage(),
-              ),
+              GoRoute(path: '/admin/doctors', builder: (_, __) => const AdminDoctorsPage()),
             ]),
             StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/admin/profile',
-                builder: (_, __) => const ProfilePage(),
-              ),
+              GoRoute(path: '/admin/profile', builder: (_, __) => const ProfilePage()),
             ]),
           ],
         ),
-        // ---------- Full-screen pages ----------
-       GoRoute(
+
+        // FULL-SCREEN PAGES
+        GoRoute(
           path: '/doctor/:id',
           parentNavigatorKey: _rootNavigatorKey,
           builder: (context, state) =>
@@ -323,14 +280,15 @@ GoRoute(
       ],
     );
   }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'CareSlot',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-        routerConfig: _router,
-           );
+      routerConfig: _router,
+    );
   }
 }
 
